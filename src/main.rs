@@ -64,7 +64,8 @@ impl<'a> ApplicationHandler for App<'a> {
                         "Failed to find an appropriate adapter",
                     );
 
-                // Create the logical device and command queue
+                // Create the logical device and command
+                // queue
                 let (device, queue) = adapter
                     .request_device(
                         &wgpu::DeviceDescriptor {
@@ -166,22 +167,29 @@ impl<'a> ApplicationHandler for App<'a> {
 
         match event {
             WindowEvent::CloseRequested => {
-                // There is a bug on macos which panics when the window closes. This
-                // isn't a huge deal since the application is already closing, but theoretically
-                // would prevent cleanup (since it is a panic) and is ugly from a DX/UX perspective.
+                // There is a bug on macos which panics when
+                // the window closes. This
+                // isn't a huge deal since the application
+                // is already closing, but theoretically
+                // would prevent cleanup (since it is a
+                // panic) and is ugly from a DX/UX
+                // perspective.
                 //
                 // ```
                 // a delegate was not configured on the application
                 // ```
                 //
-                // that can be worked around by taking the window and dropping it here ourselves.
-                // the fix has already been merged, but is not in a winit release yet.
-                // https://github.com/rust-windowing/winit/pull/3684
+                // that can be worked around by taking the
+                // window and dropping it here ourselves.
+                // the fix has already been merged, but is
+                // not in a winit release yet. https://github.com/rust-windowing/winit/pull/3684
                 //
-                // we use `.take()` to replace the options with `None` in our `App`, then we own the
+                // we use `.take()` to replace the options
+                // with `None` in our `App`, then we own the
                 // data and it will drop.
                 //
-                // `surface` keeps a reference to the window, so we need to drop that first
+                // `surface` keeps a reference to the
+                // window, so we need to drop that first
                 let _ = self.surface.take();
                 // then we can drop the window
                 let _ = self.window.take();
@@ -208,7 +216,8 @@ impl<'a> ApplicationHandler for App<'a> {
                 config.height = height.max(1);
 
                 surface.configure(device, config);
-                // On macos the window needs to be redrawn manually after resizing
+                // On macos the window needs to be redrawn
+                // manually after resizing
                 window.request_redraw();
             }
             WindowEvent::KeyboardInput {
@@ -220,14 +229,19 @@ impl<'a> ApplicationHandler for App<'a> {
                     },
                 ..
             } => {
-                // allow a single_match here so that people who use this example can easily match on
+                // allow a single_match here so that people
+                // who use this example can easily match on
                 // new keys
                 #[allow(clippy::single_match)]
                 match key.as_ref() {
-                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
+                    // WARNING: Consider using
+                    // `key_without_modifiers()` if
+                    // available on your platform.
                     Key::Named(NamedKey::Escape) => {
-                        // TODO: This is the same handling as `WindowEvent::CloseRequested`,
-                        // which we'll be removing in a future version
+                        // TODO: This is the same handling
+                        // as `WindowEvent::CloseRequested`,
+                        // which we'll be removing in a
+                        // future version
                         let _ = self.surface.take();
                         // then we can drop the window
                         let _ = self.window.take();
@@ -250,8 +264,8 @@ impl<'a> ApplicationHandler for App<'a> {
                 };
 
                 let frame = surface
-                .get_current_texture()
-                .expect("Failed to acquire next swap chain texture");
+                    .get_current_texture()
+                    .expect("Failed to acquire next swap chain texture");
                 let view = frame.texture.create_view(
                     &wgpu::TextureViewDescriptor::default(),
                 );
