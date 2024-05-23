@@ -1,0 +1,11 @@
+[package]
+name = "wgpu-for-bevy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures-lite = "2.3.0"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
+wgpu = "0.20.0"
+winit = "0.30.0"
