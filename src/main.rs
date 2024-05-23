@@ -159,7 +159,7 @@ impl<'a> ApplicationHandler for App<'a> {
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
         info!("{event:?}");
