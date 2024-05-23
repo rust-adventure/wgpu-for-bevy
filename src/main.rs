@@ -207,7 +207,7 @@ impl<'a> ApplicationHandler for App<'a> {
                 config.width = width.max(1);
                 config.height = height.max(1);
 
-                surface.configure(&device, &config);
+                surface.configure(device, config);
                 // On macos the window needs to be redrawn manually after resizing
                 window.request_redraw();
             }
@@ -277,7 +277,7 @@ impl<'a> ApplicationHandler for App<'a> {
                         timestamp_writes: None,
                         occlusion_query_set: None,
                     });
-                    rpass.set_pipeline(&render_pipeline);
+                    rpass.set_pipeline(render_pipeline);
                     rpass.draw(0..3, 0..1);
                 }
 
