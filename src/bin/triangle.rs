@@ -93,7 +93,7 @@ impl<'a> ApplicationHandler for App<'a> {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(
                     Cow::Borrowed(include_str!(
-                        "shader.wgsl"
+                        "triangle.wgsl"
                     )),
                 ),
             },
