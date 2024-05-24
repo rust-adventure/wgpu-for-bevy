@@ -64,3 +64,34 @@ struct App<'a> {
 The `ApplicationHandler` trait requires us to implement the [`resumed`](https://docs.rs/winit/0.30.0/winit/application/trait.ApplicationHandler.html#tymethod.resumed) and [`window_event`](https://docs.rs/winit/0.30.0/winit/application/trait.ApplicationHandler.html#tymethod.window_event) functions.
 
 `resumed` gets called whenever
+
+### about_to_wait
+
+```rust
+fn about_to_wait(
+    &mut self,
+    _event_loop: &ActiveEventLoop,
+) {
+    let Some(window) = self.window.as_ref() else {
+        return;
+    };
+
+    window.request_redraw();
+}
+```
+
+We also implement `about_to_wait`, although this isn't strictly required. Our use case for `about_to_wait` is constantly requesting the window to redraw. This is one of those "its a simple example so we'll just always request a redraw" kinds of things.
+
+The overall flow is
+
+1. `EventLoop` finishes an iteration
+2. The `ControlFlow` setting defines what the desired behavior is after the `Event::AboutToWait` event occurs.
+3. The `Event::AboutToWait` event causes `about_to_wait` to be called.
+4. We `request_redraw`, which creates a `WindowEvent::RedrawRequested` event for the next loop iteration to process.
+5. _because_ we've requested a redraw, the `window_event` handler above will fire, and we will get the opportunity to draw to the screen.
+
+There are [platform-specific reasons](https://docs.rs/winit/0.30.0/winit/window/struct.Window.html#method.request_redraw) a redraw can be requested. The winit docs talk about some of this inconsistency:
+
+> There are no strong guarantees about when exactly a RedrawRequest event will be emitted with respect to other events, since the requirements can vary significantly between windowing systems.
+
+More sophisticated applications like Bevy use [`RequestRedraw` events](https://github.com/bevyengine/bevy/blob/44c0325ecd5e8379be51426309eab47c12f6b289/crates/bevy_winit/src/lib.rs#L376-L380).
