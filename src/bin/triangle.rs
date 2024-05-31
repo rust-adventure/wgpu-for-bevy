@@ -163,7 +163,7 @@ impl<'a> ApplicationHandler for App<'a> {
         _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        info!("{event:?}");
+        // info!("{event:?}");
 
         match event {
             WindowEvent::CloseRequested => {

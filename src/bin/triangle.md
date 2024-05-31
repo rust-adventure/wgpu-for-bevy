@@ -85,7 +85,7 @@ We also implement `about_to_wait`, although this isn't strictly required. Our us
 The overall flow is
 
 1. `EventLoop` finishes an iteration
-2. The `ControlFlow` setting defines what the desired behavior is after the `Event::AboutToWait` event occurs.
+2. The `ControlFlow` setting defines what the desired behavior for the `EventLoop` is after the `Event::AboutToWait` event occurs.
 3. The `Event::AboutToWait` event causes `about_to_wait` to be called.
 4. We `request_redraw`, which creates a `WindowEvent::RedrawRequested` event for the next loop iteration to process.
 5. _because_ we've requested a redraw, the `window_event` handler above will fire, and we will get the opportunity to draw to the screen.
