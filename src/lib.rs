@@ -39,11 +39,11 @@ impl Vertex {
 
 const DEPTH_VERTICES: &[Vertex] = &[
     Vertex {
-        position: [-1.0, -1.0, 0.0],
+        position: [0., 0., 0.0],
         tex_coords: [0.0, 1.0],
     },
     Vertex {
-        position: [1.0, -1.0, 0.0],
+        position: [1.0, 0., 0.0],
         tex_coords: [1.0, 1.0],
     },
     Vertex {
@@ -51,7 +51,7 @@ const DEPTH_VERTICES: &[Vertex] = &[
         tex_coords: [1.0, 0.0],
     },
     Vertex {
-        position: [-1.0, 1.0, 0.0],
+        position: [0., 1.0, 0.0],
         tex_coords: [0.0, 0.0],
     },
 ];
@@ -59,7 +59,7 @@ const DEPTH_VERTICES: &[Vertex] = &[
 const DEPTH_INDICES: &[u16] = &[0, 1, 2, 0, 2, 3];
 
 pub struct DepthPass {
-    texture: texture::Texture,
+    pub texture: texture::Texture,
     layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,

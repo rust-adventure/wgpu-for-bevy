@@ -27,7 +27,7 @@ var s_shadow: sampler;
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let near = 0.1;
     let far = 100.0;
-    let depth = textureSample(t_shadow, s_shadow, in.tex_coords).x;
-    let r = (2.0 * near) / (far + near - depth * (far - near));
+    let depth = textureSample(t_shadow, s_shadow, in.tex_coords);
+    let r = (2.0 * near) / (far + near - depth.x * (far - near));
     return vec4<f32>(vec3<f32>(r), 1.0);
 }

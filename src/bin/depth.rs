@@ -146,6 +146,15 @@ impl<'a> ApplicationHandler for App<'a> {
         )
         .unwrap();
 
+        let diffuse_bytes_depth = include_bytes!("doorway_E_depth.png");
+        let diffuse_texture_depth = Texture::from_bytes(
+            &device,
+            &queue,
+            diffuse_bytes_depth,
+            "doorway_E_depth.png",
+        )
+        .unwrap();
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -167,6 +176,24 @@ impl<'a> ApplicationHandler for App<'a> {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
                 ],
                 label: Some("texture_bind_group_layout"),
             });
@@ -182,6 +209,14 @@ impl<'a> ApplicationHandler for App<'a> {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler), 
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&diffuse_texture_depth.view), 
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Sampler(&diffuse_texture_depth.sampler), 
                     }
                 ],
                 label: Some("diffuse_bind_group"),
@@ -199,6 +234,14 @@ impl<'a> ApplicationHandler for App<'a> {
         )
         .unwrap();
 
+        let diffuse_bytes_depth = include_bytes!("player.png");
+        let diffuse_texture_depth = Texture::from_bytes(
+            &device,
+            &queue,
+            diffuse_bytes_depth,
+            "player.png",
+        )
+        .unwrap();
         // let texture_bind_group_layout_player =
         //     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         //         entries: &[
@@ -235,6 +278,14 @@ impl<'a> ApplicationHandler for App<'a> {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler), 
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&diffuse_texture_depth.view), 
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Sampler(&diffuse_texture_depth.sampler), 
                     }
                 ],
                 label: Some("diffuse_bind_group_player"),
@@ -529,7 +580,8 @@ impl<'a> ApplicationHandler for App<'a> {
                             },
                         })],
                         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                            view: &self.depth_texture.as_ref().unwrap().view,
+                            // view: &self.depth_texture.as_ref().unwrap().view,
+                            view: &self.depth_pass.as_ref().unwrap().texture.view,
                             depth_ops: Some(wgpu::Operations {
                                 load: wgpu::LoadOp::Clear(1.0),
                                 store: wgpu::StoreOp::Store,
@@ -570,26 +622,26 @@ impl<'a> ApplicationHandler for App<'a> {
                         0..1,
                     );
 
-
                     self.player_position = (self.player_position + 1) % 100;
                
-                   let offset_player = -(self.player_position as f32 / 100.);
-                   let player_z = 0.1;
+                   let offset_player_x = -(self.player_position as f32 / 100.);
+                   let offset_player_y = -0.45;
+                   let player_z = 0.5;
                     let vertices = [
                         Vertex {
-                            position: [offset_player + -0.25, 0.25, player_z],
+                            position: [offset_player_x + 0.,offset_player_y +  0.25, player_z],
                             tex_coords: [0.0, 0.0],
                         },
                         Vertex {
-                            position: [offset_player + -0.25, -0.25, player_z],
+                            position: [offset_player_x + 0.,offset_player_y +  -0.25, player_z],
                             tex_coords: [0.0, 1.0],
                         },
                         Vertex {
-                            position: [offset_player + 0.25, -0.25, player_z],
+                            position: [offset_player_x + 0.5, offset_player_y + -0.25, player_z],
                             tex_coords: [1.0, 1.0],
                         },
                         Vertex {
-                            position: [offset_player + 0.25, 0.25, player_z],
+                            position: [offset_player_x + 0.5, offset_player_y + 0.25, player_z],
                             tex_coords: [1.0, 0.0],
                         },
                     ];
