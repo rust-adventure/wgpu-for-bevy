@@ -76,8 +76,8 @@ impl<'a> ApplicationHandler for App<'a> {
                                 wgpu::Limits::downlevel_webgl2_defaults(
                                 )
                                 .using_resolution(adapter.limits()),
+                            ..Default::default()
                         },
-                        None,
                     )
                     .await
                     .expect("Failed to create device");
@@ -120,14 +120,14 @@ impl<'a> ApplicationHandler for App<'a> {
                     layout: Some(&pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
-                        entry_point: "vs_main",
+                        entry_point: "vs_main".into(),
                         buffers: &[],
                         compilation_options:
                             Default::default(),
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "fs_main",
+                        entry_point: "fs_main".into(),
                         compilation_options:
                             Default::default(),
                         targets: &[Some(
@@ -140,6 +140,7 @@ impl<'a> ApplicationHandler for App<'a> {
                     multisample:
                         wgpu::MultisampleState::default(),
                     multiview: None,
+                    cache: None,
                 },
             );
 
@@ -291,6 +292,9 @@ impl<'a> ApplicationHandler for App<'a> {
                                 }),
                                 store: wgpu::StoreOp::Store,
                             },
+                            // depth_slice allows rendering to a layer of a texture array
+                            // or a slice of a 3d texture view
+                            depth_slice: None
                         })],
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
