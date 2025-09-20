@@ -168,33 +168,6 @@ impl<'a> ApplicationHandler for App<'a> {
 
         match event {
             WindowEvent::CloseRequested => {
-                // There is a bug on macos which panics when
-                // the window closes. This
-                // isn't a huge deal since the application
-                // is already closing, but theoretically
-                // would prevent cleanup (since it is a
-                // panic) and is ugly from a DX/UX
-                // perspective.
-                //
-                // ```
-                // a delegate was not configured on the application
-                // ```
-                //
-                // that can be worked around by taking the
-                // window and dropping it here ourselves.
-                // the fix has already been merged, but is
-                // not in a winit release yet. https://github.com/rust-windowing/winit/pull/3684
-                //
-                // we use `.take()` to replace the options
-                // with `None` in our `App`, then we own the
-                // data and it will drop.
-                //
-                // `surface` keeps a reference to the
-                // window, so we need to drop that first
-                let _ = self.surface.take();
-                // then we can drop the window
-                let _ = self.window.take();
-
                 event_loop.exit();
             }
             WindowEvent::Resized(PhysicalSize {
