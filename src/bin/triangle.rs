@@ -1,3 +1,4 @@
+use futures_lite::future::block_on;
 use std::{borrow::Cow, sync::Arc};
 use tracing::info;
 use wgpu::{
@@ -13,16 +14,21 @@ use winit::{
     window::Window,
 };
 
-#[derive(Default)]
-struct App<'a> {
-    window: Option<Arc<Window>>,
-    config: Option<SurfaceConfiguration>,
-    render_pipeline: Option<RenderPipeline>,
-    surface: Option<Surface<'a>>,
-    device: Option<Device>,
-    queue: Option<Queue>,
+struct ResumedData<'a> {
+    window: Arc<Window>,
+    config: SurfaceConfiguration,
+    render_pipeline: RenderPipeline,
+    surface: Surface<'a>,
+    device: Device,
+    queue: Queue,
 }
 
+#[derive(Default)]
+struct App<'a> {
+    resumed_data: Option<ResumedData<'a>>,
+}
+
+/// Winit
 impl<'a> ApplicationHandler for App<'a> {
     fn resumed(
         &mut self,
@@ -37,7 +43,6 @@ impl<'a> ApplicationHandler for App<'a> {
                 .create_window(window_attributes)
                 .unwrap(),
         );
-        self.window = Some(window.clone());
 
         let mut size = window.inner_size();
         size.width = size.width.max(1);
@@ -45,10 +50,15 @@ impl<'a> ApplicationHandler for App<'a> {
 
         let instance = wgpu::Instance::default();
 
-        let (surface, adapter, device, queue) =
-            futures_lite::future::block_on(async move {
+        // `surface_window` is captured by the async closure,
+        // so we clone our Arc and let the closure take it
+        let surface_window = window.clone();
+        // wgpu apis for getting an adapter are async,
+        // so we block while waiting for them to complete
+        let (surface, adapter, device, queue) = block_on(
+            async move {
                 let surface = instance
-                    .create_surface(window)
+                    .create_surface(surface_window)
                     .unwrap();
 
                 let adapter = instance
@@ -64,33 +74,30 @@ impl<'a> ApplicationHandler for App<'a> {
                         "Failed to find an appropriate adapter",
                     );
 
+                info!(adapter=?adapter.get_info());
+
                 // Create the logical device and command
                 // queue
                 let (device, queue) = adapter
                     .request_device(
-                        &wgpu::DeviceDescriptor {
-                            label: None,
-                            required_features: wgpu::Features::empty(),
-                            // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
-                            required_limits:
-                                wgpu::Limits::downlevel_webgl2_defaults(
-                                )
-                                .using_resolution(adapter.limits()),
-                            ..Default::default()
-                        },
+                        &wgpu::DeviceDescriptor::default(),
                     )
                     .await
                     .expect("Failed to create device");
 
-                (surface, adapter, device, queue)
-            });
+                // device.limits will print the hard limits of the
+                // device. This includes things like max texture dimensions,
+                // max color attachments, and max vertex buffers.
+                // info!(limits=?device.limits());
 
-        self.queue = Some(queue);
+                (surface, adapter, device, queue)
+            },
+        );
 
         // Load the shaders from disk
         let shader = device.create_shader_module(
             wgpu::ShaderModuleDescriptor {
-                label: None,
+                label: "triangle_shader".into(),
                 source: wgpu::ShaderSource::Wgsl(
                     Cow::Borrowed(include_str!(
                         "triangle.wgsl"
@@ -102,32 +109,30 @@ impl<'a> ApplicationHandler for App<'a> {
         let pipeline_layout = device
             .create_pipeline_layout(
                 &wgpu::PipelineLayoutDescriptor {
-                    label: None,
+                    label: "triangle_layout".into(),
                     bind_group_layouts: &[],
                     push_constant_ranges: &[],
                 },
             );
 
-        let swapchain_capabilities =
-            surface.get_capabilities(&adapter);
         let swapchain_format =
-            swapchain_capabilities.formats[0];
+            surface.get_capabilities(&adapter).formats[0];
 
         let render_pipeline = device
             .create_render_pipeline(
                 &wgpu::RenderPipelineDescriptor {
-                    label: None,
+                    label: "triangle_pipeline".into(),
                     layout: Some(&pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
-                        entry_point: "vs_main".into(),
+                        entry_point: "vertex".into(),
                         buffers: &[],
                         compilation_options:
                             Default::default(),
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "fs_main".into(),
+                        entry_point: "fragment".into(),
                         compilation_options:
                             Default::default(),
                         targets: &[Some(
@@ -152,10 +157,14 @@ impl<'a> ApplicationHandler for App<'a> {
             )
             .unwrap();
         surface.configure(&device, &config);
-        self.config = Some(config);
-        self.render_pipeline = Some(render_pipeline);
-        self.surface = Some(surface);
-        self.device = Some(device);
+        self.resumed_data = Some(ResumedData {
+            window,
+            config,
+            render_pipeline,
+            surface,
+            device,
+            queue,
+        });
     }
 
     fn window_event(
@@ -174,25 +183,22 @@ impl<'a> ApplicationHandler for App<'a> {
                 width,
                 height,
             }) => {
-                let Self {
-                    config: Some(config),
-                    surface: Some(surface),
-                    device: Some(device),
-                    window: Some(window),
+                let Some(ResumedData {
+                    config,
+                    surface,
+                    device,
                     ..
-                } = self
+                }) = self.resumed_data.as_mut()
                 else {
                     return;
                 };
 
-                // Reconfigure the surface with the new size
+                // Reconfigure the surface with the new size,
+                // making it so that the window is *at least* 1x1
                 config.width = width.max(1);
                 config.height = height.max(1);
 
-                surface.configure(device, config);
-                // On macos the window needs to be redrawn
-                // manually after resizing
-                window.request_redraw();
+                surface.configure(&device, &config);
             }
             WindowEvent::KeyboardInput {
                 event:
@@ -212,27 +218,19 @@ impl<'a> ApplicationHandler for App<'a> {
                     // `key_without_modifiers()` if
                     // available on your platform.
                     Key::Named(NamedKey::Escape) => {
-                        // TODO: This is the same handling
-                        // as `WindowEvent::CloseRequested`,
-                        // which we'll be removing in a
-                        // future version
-                        let _ = self.surface.take();
-                        // then we can drop the window
-                        let _ = self.window.take();
-
                         event_loop.exit();
                     }
                     _ => (),
                 }
             }
             WindowEvent::RedrawRequested => {
-                let Self {
-                    surface: Some(surface),
-                    device: Some(device),
-                    queue: Some(queue),
-                    render_pipeline: Some(render_pipeline),
+                let Some(ResumedData {
+                    surface,
+                    device,
+                    queue,
+                    render_pipeline,
                     ..
-                } = self
+                }) = self.resumed_data.as_ref()
                 else {
                     return;
                 };
@@ -246,13 +244,15 @@ impl<'a> ApplicationHandler for App<'a> {
                 let mut encoder = device
                     .create_command_encoder(
                         &wgpu::CommandEncoderDescriptor {
-                            label: None,
+                            label:
+                                "triangle_command_encoder"
+                                    .into(),
                         },
                     );
                 {
                     let mut rpass =
                     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: None,
+                        label: "triangle_render_pass".into(),
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: &view,
                             resolve_target: None,
@@ -273,7 +273,7 @@ impl<'a> ApplicationHandler for App<'a> {
                         timestamp_writes: None,
                         occlusion_query_set: None,
                     });
-                    rpass.set_pipeline(render_pipeline);
+                    rpass.set_pipeline(&render_pipeline);
                     rpass.draw(0..3, 0..1);
                 }
 
@@ -287,11 +287,11 @@ impl<'a> ApplicationHandler for App<'a> {
         &mut self,
         _event_loop: &ActiveEventLoop,
     ) {
-        let Some(window) = self.window.as_ref() else {
+        let Some(data) = self.resumed_data.as_ref() else {
             return;
         };
 
-        window.request_redraw();
+        data.window.request_redraw();
     }
 }
 
