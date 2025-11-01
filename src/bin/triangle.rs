@@ -89,7 +89,6 @@ impl<'a> ApplicationHandler for App<'a> {
                 // device. This includes things like max texture dimensions,
                 // max color attachments, and max vertex buffers.
                 // info!(limits=?device.limits());
-
                 (surface, adapter, device, queue)
             },
         );
