@@ -1,9 +1,10 @@
-[package]
-name = "wgpu-for-bevy"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+exclude = []
+license = "MIT OR Apache-2.0"
+resolver = "3"
+members = ["examples/*"]
 
-[dependencies]
+[workspace.dependencies]
 futures-lite = "2.6.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
