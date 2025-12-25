@@ -1,0 +1,13 @@
+[package]
+name = "mesh-shader-landscape"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+futures-lite.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+bevy_camera = "0.18.0-rc.1"
+wesl = "0.3.1"

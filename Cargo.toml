@@ -7,6 +7,6 @@ members = ["examples/*"]
 [workspace.dependencies]
 futures-lite = "2.6.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
-wgpu = "26.0"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+wgpu = "28.0"
 winit = "0.30"

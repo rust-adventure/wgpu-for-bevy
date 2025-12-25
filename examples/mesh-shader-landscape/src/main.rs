@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use tracing::info;
 use wgpu::{
     Device, Queue, RenderPipeline, Surface,
-    SurfaceConfiguration,
+    SurfaceConfiguration, TaskState, wgt::CreateShaderModuleDescriptorPassthrough,
 };
 use winit::{
     application::ApplicationHandler,
@@ -74,6 +74,13 @@ impl<'a> ApplicationHandler for App<'a> {
                         "Failed to find an appropriate adapter",
                     );
 
+                    // features we need 
+if  !                    adapter.features().contains(  
+        wgpu::Features::EXPERIMENTAL_MESH_SHADER | wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
+    ){ 
+        panic!("necessary features unavailable");
+    };
+
                 info!(adapter=?adapter.get_info());
 
                 // Create the logical device and command
@@ -93,18 +100,41 @@ impl<'a> ApplicationHandler for App<'a> {
             },
         );
 
-        // Load the shaders from disk
-        let shader = device.create_shader_module(
+        
+        let task_shader = device.create_shader_module(
             wgpu::ShaderModuleDescriptor {
-                label: "triangle_shader".into(),
+                label: None,
                 source: wgpu::ShaderSource::Wgsl(
-                    Cow::Borrowed(include_str!(
-                        "triangle.wgsl"
-                    )),
+                    include_str!("task.wgsl").into(),
                 ),
             },
         );
-
+        // metal requires passthrough
+//                 let task_shader = unsafe { device.create_shader_module_passthrough(CreateShaderModuleDescriptorPassthrough{
+//                     entry_point: "task".into(),
+//                     label: Some("task_shader"),
+// num_workgroups: (1, 1, 1),
+//                     wgsl: Some(include_str!("task.wgsl").into()),
+//                     ..Default::default()
+//                 }
+           
+//         ) };
+        let mesh_shader = device.create_shader_module(
+            wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("mesh.wgsl").into(),
+                ),
+            },
+        );
+        let fragment_shader = device.create_shader_module(
+            wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("fragment.wgsl").into(),
+                ),
+            },
+        );
         let pipeline_layout = device
             .create_pipeline_layout(
                 &wgpu::PipelineLayoutDescriptor {
@@ -117,36 +147,64 @@ impl<'a> ApplicationHandler for App<'a> {
         let swapchain_format =
             surface.get_capabilities(&adapter).formats[0];
 
-        let render_pipeline = device
-            .create_render_pipeline(
-                &wgpu::RenderPipelineDescriptor {
-                    label: "triangle_pipeline".into(),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: "vertex".into(),
-                        buffers: &[],
-                        compilation_options:
-                            Default::default(),
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: "fragment".into(),
-                        compilation_options:
-                            Default::default(),
-                        targets: &[Some(
-                            swapchain_format.into(),
-                        )],
-                    }),
-                    primitive:
-                        wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
-                    multisample:
-                        wgpu::MultisampleState::default(),
-                    multiview_mask: None,
-                    cache: None,
+        let render_pipeline = device.create_mesh_pipeline(
+            &wgpu::MeshPipelineDescriptor {
+                label: "mesh_shader_pipeline".into(),
+                layout: Some(&pipeline_layout),
+                task: Some(TaskState {
+                    module: &task_shader,
+                    entry_point: "task".into(),
+                    compilation_options: Default::default(),
+                }),
+                mesh: wgpu::MeshState {
+                    module: &mesh_shader,
+                    entry_point: "mesh".into(),
+                    compilation_options: Default::default(),
                 },
-            );
+                fragment: Some(wgpu::FragmentState {
+                    module: &fragment_shader,
+                    entry_point: "fragment".into(),
+                    compilation_options: Default::default(),
+                    targets: &[Some(
+                        swapchain_format.into(),
+                    )],
+                }),
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                cache: None,
+                multiview: None,
+            },
+        );
+        // .create_render_pipeline(
+        //     &wgpu::RenderPipelineDescriptor {
+        //         label: "triangle_pipeline".into(),
+        //         layout: Some(&pipeline_layout),
+        //         vertex: wgpu::VertexState {
+        //             module: &shader,
+        //             entry_point: "vertex".into(),
+        //             buffers: &[],
+        //             compilation_options:
+        //                 Default::default(),
+        //         },
+        //         fragment: Some(wgpu::FragmentState {
+        //             module: &shader,
+        //             entry_point: "fragment".into(),
+        //             compilation_options:
+        //                 Default::default(),
+        //             targets: &[Some(
+        //                 swapchain_format.into(),
+        //             )],
+        //         }),
+        //         primitive:
+        //             wgpu::PrimitiveState::default(),
+        //         depth_stencil: None,
+        //         multisample:
+        //             wgpu::MultisampleState::default(),
+        //         multiview_mask: None,
+        //         cache: None,
+        //     },
+        // );
 
         let config = surface
             .get_default_config(
@@ -249,32 +307,32 @@ impl<'a> ApplicationHandler for App<'a> {
                         },
                     );
                 {
-                    let mut rpass =
-                    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: "triangle_render_pass".into(),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color{
-                                    r: 0.008,
-                                    g: 0.024,
-                                    b: 0.09,
-                                    a: 1.0,
-                                }),
-                                store: wgpu::StoreOp::Store,
-                            },
-                            // depth_slice allows rendering to a layer of a texture array
-                            // or a slice of a 3d texture view
-                            depth_slice: None
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                        multiview_mask: None
-                    });
-                    rpass.set_pipeline(&render_pipeline);
-                    rpass.draw(0..3, 0..1);
+                    // let mut rpass =
+                    // encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    //     label: "triangle_render_pass".into(),
+                    //     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    //         view: &view,
+                    //         resolve_target: None,
+                    //         ops: wgpu::Operations {
+                    //             load: wgpu::LoadOp::Clear(wgpu::Color{
+                    //                 r: 0.008,
+                    //                 g: 0.024,
+                    //                 b: 0.09,
+                    //                 a: 1.0,
+                    //             }),
+                    //             store: wgpu::StoreOp::Store,
+                    //         },
+                    //         // depth_slice allows rendering to a layer of a texture array
+                    //         // or a slice of a 3d texture view
+                    //         depth_slice: None
+                    //     })],
+                    //     depth_stencil_attachment: None,
+                    //     timestamp_writes: None,
+                    //     occlusion_query_set: None,
+                    //     multiview_mask: None
+                    // });
+                    // rpass.set_pipeline(&render_pipeline);
+                    // rpass.draw(0..3, 0..1);
                 }
 
                 queue.submit(Some(encoder.finish()));

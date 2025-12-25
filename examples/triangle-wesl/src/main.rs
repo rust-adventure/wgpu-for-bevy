@@ -94,7 +94,7 @@ impl<'a> ApplicationHandler for App<'a> {
         );
 
         // Load the shaders from disk
-        use wesl::{VirtualResolver, Wesl};
+        use wesl::Wesl;
         let compiler =
             Wesl::new("examples/triangle-wesl/src");
         // # // just adding a virtual file here so the doctest runs without a filesystem
@@ -123,7 +123,7 @@ impl<'a> ApplicationHandler for App<'a> {
                 &wgpu::PipelineLayoutDescriptor {
                     label: "triangle_layout".into(),
                     bind_group_layouts: &[],
-                    push_constant_ranges: &[],
+                    immediate_size: 0,
                 },
             );
 
@@ -156,7 +156,7 @@ impl<'a> ApplicationHandler for App<'a> {
                     depth_stencil: None,
                     multisample:
                         wgpu::MultisampleState::default(),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 },
             );
@@ -284,6 +284,7 @@ impl<'a> ApplicationHandler for App<'a> {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None
                     });
                     rpass.set_pipeline(&render_pipeline);
                     rpass.draw(0..3, 0..1);
