@@ -1,19 +1,12 @@
-use encase::{
-    ShaderType, UniformBuffer, internal::WriteInto,
-};
+use encase::{ShaderType, UniformBuffer};
 use futures_lite::future::block_on;
-use std::{
-    borrow::Cow,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Instant};
 use tracing::info;
 use wgpu::{
-    Backends, BindGroup, BindGroupEntry,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingResource, BindingType, BufferBinding,
-    BufferBindingType, Device, ExperimentalFeatures,
-    Limits, Queue, RenderPipeline, ShaderStages, Surface,
+    BindGroup, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, BufferBindingType,
+    Device, ExperimentalFeatures, Limits, Queue,
+    RenderPipeline, ShaderStages, Surface,
     SurfaceConfiguration, TaskState, util::DeviceExt,
 };
 use winit::{
