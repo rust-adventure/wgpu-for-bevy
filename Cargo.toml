@@ -10,3 +10,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 wgpu = "28.0"
 winit = "0.30"
+# naga-oil = { git = "https://github.com/ChristopherBiscardi/naga_oil.git", branch = "naga-28" }

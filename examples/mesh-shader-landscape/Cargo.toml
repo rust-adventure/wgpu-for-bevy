@@ -11,3 +11,4 @@ wgpu.workspace = true
 winit.workspace = true
 bevy_camera = "0.18.0-rc.1"
 wesl = "0.3.1"
+encase = "0.12"

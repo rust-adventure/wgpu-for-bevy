@@ -2034,6 +2034,7 @@ name = "mesh-shader-landscape"
 version = "0.1.0"
 dependencies = [
  "bevy_camera",
+ "encase",
  "futures-lite",
  "tracing",
  "tracing-subscriber",

@@ -1,9 +1,20 @@
+use encase::{
+    ShaderType, UniformBuffer, internal::WriteInto,
+};
 use futures_lite::future::block_on;
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tracing::info;
 use wgpu::{
-    Device, Queue, RenderPipeline, Surface,
-    SurfaceConfiguration, TaskState, wgt::CreateShaderModuleDescriptorPassthrough,
+    Backends, BindGroup, BindGroupEntry,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindingResource, BindingType, BufferBinding,
+    BufferBindingType, Device, ExperimentalFeatures,
+    Limits, Queue, RenderPipeline, ShaderStages, Surface,
+    SurfaceConfiguration, TaskState, util::DeviceExt,
 };
 use winit::{
     application::ApplicationHandler,
@@ -21,11 +32,27 @@ struct ResumedData<'a> {
     surface: Surface<'a>,
     device: Device,
     queue: Queue,
+    time_bind_group: BindGroup,
+    time_uniform_buffer: wgpu::Buffer,
 }
 
-#[derive(Default)]
 struct App<'a> {
     resumed_data: Option<ResumedData<'a>>,
+    start: Instant,
+}
+
+impl Default for App<'_> {
+    fn default() -> Self {
+        Self {
+            resumed_data: Default::default(),
+            start: Instant::now(),
+        }
+    }
+}
+
+#[derive(ShaderType)]
+struct ShaderData {
+    time: f32,
 }
 
 /// Winit
@@ -74,12 +101,16 @@ impl<'a> ApplicationHandler for App<'a> {
                         "Failed to find an appropriate adapter",
                     );
 
-                    // features we need 
-if  !                    adapter.features().contains(  
-        wgpu::Features::EXPERIMENTAL_MESH_SHADER | wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
-    ){ 
-        panic!("necessary features unavailable");
-    };
+                // info!(features=?adapter.features());
+                // features we need
+                let has_features = adapter.features().contains(
+                    wgpu::Features::EXPERIMENTAL_MESH_SHADER | wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
+                );
+                if !has_features {
+                    panic!(
+                        "necessary features unavailable"
+                    );
+                };
 
                 info!(adapter=?adapter.get_info());
 
@@ -87,7 +118,13 @@ if  !                    adapter.features().contains(
                 // queue
                 let (device, queue) = adapter
                     .request_device(
-                        &wgpu::DeviceDescriptor::default(),
+                        &wgpu::DeviceDescriptor{
+                            label: Some("mesh_adapter"),
+                            required_features:  wgpu::Features::EXPERIMENTAL_MESH_SHADER,
+                            experimental_features: unsafe { ExperimentalFeatures::enabled() },
+                            required_limits: Limits::default().using_recommended_minimum_mesh_shader_values(),
+                           ..Default::default()
+                        },
                     )
                     .await
                     .expect("Failed to create device");
@@ -100,46 +137,94 @@ if  !                    adapter.features().contains(
             },
         );
 
-        
+        info!("build task_shader");
         let task_shader = device.create_shader_module(
             wgpu::ShaderModuleDescriptor {
-                label: None,
+                label: Some("task_shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     include_str!("task.wgsl").into(),
                 ),
             },
         );
-        // metal requires passthrough
-//                 let task_shader = unsafe { device.create_shader_module_passthrough(CreateShaderModuleDescriptorPassthrough{
-//                     entry_point: "task".into(),
-//                     label: Some("task_shader"),
-// num_workgroups: (1, 1, 1),
-//                     wgsl: Some(include_str!("task.wgsl").into()),
-//                     ..Default::default()
-//                 }
-           
-//         ) };
+        // metal requires passthrough... leaving this here for a moment until either wgsl -> metal merges or
+        // I get around to writing separate metal shaders
+        //                 let task_shader = unsafe { device.create_shader_module_passthrough(CreateShaderModuleDescriptorPassthrough{
+        //                     entry_point: "task".into(),
+        //                     label: Some("task_shader"),
+        // num_workgroups: (1, 1, 1),
+        //                     wgsl: Some(include_str!("task.wgsl").into()),
+        //                     ..Default::default()
+        //                 }
+
+        //         ) };
+        info!("build mesh_shader");
         let mesh_shader = device.create_shader_module(
             wgpu::ShaderModuleDescriptor {
-                label: None,
+                label: Some("mesh_shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     include_str!("mesh.wgsl").into(),
                 ),
             },
         );
+        info!("build fragment_shader");
         let fragment_shader = device.create_shader_module(
             wgpu::ShaderModuleDescriptor {
-                label: None,
+                label: Some("fragment_shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     include_str!("fragment.wgsl").into(),
                 ),
+            },
+        );
+        let time_layout = device.create_bind_group_layout(
+            &BindGroupLayoutDescriptor {
+                label: "time_layout".into(),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::all(),
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(
+                            ShaderData::min_size(),
+                        ),
+                    },
+                    count: None,
+                }],
+            },
+        );
+        let mut buffer =
+            UniformBuffer::new(Vec::<u8>::new());
+        let data = ShaderData {
+            time: self.start.elapsed().as_secs_f32(),
+        };
+        buffer.write(&data).unwrap();
+        let byte_buffer = buffer.into_inner();
+
+        let time_uniform_buf = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("shader_data_uniform_buffer"),
+                contents: &byte_buffer,
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST,
+            },
+        );
+        // uniform.wri
+        let time_bind_group = device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
+                label: "time_bind_group".into(),
+                layout: &time_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: time_uniform_buf
+                        .as_entire_binding(),
+                }],
             },
         );
         let pipeline_layout = device
             .create_pipeline_layout(
                 &wgpu::PipelineLayoutDescriptor {
                     label: "triangle_layout".into(),
-                    bind_group_layouts: &[],
+                    bind_group_layouts: &[&time_layout],
                     immediate_size: 0,
                 },
             );
@@ -176,35 +261,6 @@ if  !                    adapter.features().contains(
                 multiview: None,
             },
         );
-        // .create_render_pipeline(
-        //     &wgpu::RenderPipelineDescriptor {
-        //         label: "triangle_pipeline".into(),
-        //         layout: Some(&pipeline_layout),
-        //         vertex: wgpu::VertexState {
-        //             module: &shader,
-        //             entry_point: "vertex".into(),
-        //             buffers: &[],
-        //             compilation_options:
-        //                 Default::default(),
-        //         },
-        //         fragment: Some(wgpu::FragmentState {
-        //             module: &shader,
-        //             entry_point: "fragment".into(),
-        //             compilation_options:
-        //                 Default::default(),
-        //             targets: &[Some(
-        //                 swapchain_format.into(),
-        //             )],
-        //         }),
-        //         primitive:
-        //             wgpu::PrimitiveState::default(),
-        //         depth_stencil: None,
-        //         multisample:
-        //             wgpu::MultisampleState::default(),
-        //         multiview_mask: None,
-        //         cache: None,
-        //     },
-        // );
 
         let config = surface
             .get_default_config(
@@ -221,6 +277,8 @@ if  !                    adapter.features().contains(
             surface,
             device,
             queue,
+            time_bind_group,
+            time_uniform_buffer: time_uniform_buf,
         });
     }
 
@@ -298,6 +356,28 @@ if  !                    adapter.features().contains(
                 let view = frame.texture.create_view(
                     &wgpu::TextureViewDescriptor::default(),
                 );
+
+                let mut buffer =
+                    UniformBuffer::new(Vec::<u8>::new());
+                let data = ShaderData {
+                    time: self
+                        .start
+                        .elapsed()
+                        .as_secs_f32(),
+                };
+                dbg!(self.start.elapsed().as_secs_f32());
+
+                buffer.write(&data).unwrap();
+                let byte_buffer = buffer.into_inner();
+                queue.write_buffer(
+                    &self
+                        .resumed_data
+                        .as_ref()
+                        .unwrap()
+                        .time_uniform_buffer,
+                    0,
+                    &byte_buffer,
+                );
                 let mut encoder = device
                     .create_command_encoder(
                         &wgpu::CommandEncoderDescriptor {
@@ -307,32 +387,48 @@ if  !                    adapter.features().contains(
                         },
                     );
                 {
-                    // let mut rpass =
-                    // encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    //     label: "triangle_render_pass".into(),
-                    //     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    //         view: &view,
-                    //         resolve_target: None,
-                    //         ops: wgpu::Operations {
-                    //             load: wgpu::LoadOp::Clear(wgpu::Color{
-                    //                 r: 0.008,
-                    //                 g: 0.024,
-                    //                 b: 0.09,
-                    //                 a: 1.0,
-                    //             }),
-                    //             store: wgpu::StoreOp::Store,
-                    //         },
-                    //         // depth_slice allows rendering to a layer of a texture array
-                    //         // or a slice of a 3d texture view
-                    //         depth_slice: None
-                    //     })],
-                    //     depth_stencil_attachment: None,
-                    //     timestamp_writes: None,
-                    //     occlusion_query_set: None,
-                    //     multiview_mask: None
-                    // });
-                    // rpass.set_pipeline(&render_pipeline);
-                    // rpass.draw(0..3, 0..1);
+                    let mut rpass =
+                    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: "triangle_render_pass".into(),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color{
+                                    r: 0.008,
+                                    g: 0.024,
+                                    b: 0.09,
+                                    a: 1.0,
+                                }),
+                                store: wgpu::StoreOp::Store,
+                            },
+                            // depth_slice allows rendering to a layer of a texture array
+                            // or a slice of a 3d texture view
+                            depth_slice: None
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None
+                    });
+                    rpass.push_debug_group(
+                        "Prepare data for draw.",
+                    );
+                    rpass.set_pipeline(&render_pipeline);
+                    rpass.set_bind_group(
+                        0,
+                        Some(
+                            &self
+                                .resumed_data
+                                .as_ref()
+                                .unwrap()
+                                .time_bind_group,
+                        ),
+                        &[],
+                    );
+                    rpass.pop_debug_group();
+                    rpass.insert_debug_marker("Draw!");
+                    rpass.draw_mesh_tasks(1, 1, 1);
                 }
 
                 queue.submit(Some(encoder.finish()));

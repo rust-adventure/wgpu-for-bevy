@@ -11,5 +11,5 @@ struct PrimitiveInput {
 
 @fragment
 fn fragment(vertex: VertexOutput, primitive: PrimitiveInput) -> @location(0) vec4<f32> {
-    return vertex.color * primitive.colorMask;
+    return vertex.position;//vertex.color * primitive.colorMask;
 }
